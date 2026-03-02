@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discord Prediction Markets — Interactive Prototype</title>
+<style>
+  /* ── Reset & Discord Theme ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #313338;
+    --bg-secondary: #2b2d31;
+    --bg-tertiary: #1e1f22;
+    --bg-floating: #232428;
+    --text-normal: #dbdee1;
+    --text-muted: #949ba4;
+    --text-link: #00a8fc;
+    --header-primary: #f2f3f5;
+    --green: #23a559;
+    --green-hover: #1a8f4a;
+    --red: #f23f43;
+    --red-hover: #d83c3e;
+    --blurple: #5865f2;
+    --blurple-hover: #4752c4;
+    --yellow: #f0b232;
+    --border: #3f4147;
+    --input-bg: #1e1f22;
+    --modal-bg: #313338;
+    --overlay: rgba(0,0,0,0.6);
+    --embed-bg: #2b2d31;
+    --font: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --radius: 8px;
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-primary);
+    color: var(--text-normal);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+
+  /* ── Layout ── */
+  .app {
+    display: flex;
+    height: 100vh;
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--bg-tertiary);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+
+  .sidebar-header {
+    padding: 12px 16px;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--header-primary);
+    border-bottom: 1px solid var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 48px;
+  }
+
+  .channel-category {
+    padding: 16px 8px 4px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--text-muted);
+  }
+
+  .channel {
+    padding: 6px 8px 6px 16px;
+    margin: 1px 8px;
+    border-radius: 4px;
+    font-size: 15px;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .channel:hover { background: rgba(79,84,92,0.3); color: var(--text-normal); }
+  .channel.active { background: rgba(79,84,92,0.6); color: var(--header-primary); }
+  .channel-hash { font-size: 18px; opacity: 0.7; }
+
+  /* Chat area */
+  .chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .chat-header {
+    height: 48px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--bg-tertiary);
+    font-weight: 600;
+    color: var(--header-primary);
+    flex-shrink: 0;
+  }
+
+  .chat-header .channel-hash { color: var(--text-muted); }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  /* ── Step indicator ── */
+  .steps-bar {
+    background: var(--bg-tertiary);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+
+  .step-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .step-item:hover { color: var(--text-normal); background: rgba(79,84,92,0.3); }
+  .step-item.active { background: var(--blurple); color: white; }
+  .step-item.done { color: var(--green); }
+
+  .step-arrow {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin: 0 2px;
+    flex-shrink: 0;
+  }
+
+  .step-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .step-item.active .step-num { background: rgba(255,255,255,0.2); }
+  .step-item.done .step-num { background: var(--green); color: white; }
+
+  /* ── Message ── */
+  .message {
+    display: flex;
+    gap: 16px;
+  }
+
+  .avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--blurple);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    color: white;
+    font-weight: 700;
+  }
+
+  .avatar.bot { background: var(--blurple); }
+  .avatar.user { background: var(--green); }
+
+  .msg-content { flex: 1; min-width: 0; }
+
+  .msg-author {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--header-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .bot-badge {
+    background: var(--blurple);
+    color: white;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    text-transform: uppercase;
+  }
+
+  .msg-time {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 400;
+    margin-left: 4px;
+  }
+
+  .msg-text {
+    font-size: 15px;
+    color: var(--text-normal);
+    margin-top: 2px;
+  }
+
+  /* ── Embed (Market Card) ── */
+  .embed {
+    max-width: 520px;
+    border-radius: var(--radius);
+    background: var(--embed-bg);
+    border-left: 4px solid var(--blurple);
+    margin-top: 4px;
+    overflow: hidden;
+  }
+
+  .embed-body { padding: 12px 16px; }
+
+  .embed-pill-green { border-left-color: var(--green); }
+  .embed-pill-red { border-left-color: var(--red); }
+  .embed-pill-gold { border-left-color: var(--yellow); }
+  .embed-pill-blurple { border-left-color: var(--blurple); }
+
+  .embed-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .embed-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+  }
+
+  .live-badge {
+    background: var(--red);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: white;
+  }
+
+  .embed-question {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--header-primary);
+    margin-bottom: 12px;
+    line-height: 1.3;
+  }
+
+  /* Probability bar */
+  .prob-bar-container {
+    margin-bottom: 14px;
+  }
+
+  .prob-bar-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .prob-bar {
+    height: 8px;
+    background: var(--bg-tertiary);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .prob-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--green), #57d08b);
+    border-radius: 4px;
+    transition: width 1s ease;
+  }
+
+  /* YES/NO buttons */
+  .trade-buttons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .btn-yes, .btn-no {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s;
+    font-family: var(--font);
+  }
+
+  .btn-yes {
+    background: var(--green);
+    color: white;
+  }
+  .btn-yes:hover { background: var(--green-hover); transform: translateY(-1px); }
+
+  .btn-no {
+    background: var(--red);
+    color: white;
+  }
+  .btn-no:hover { background: var(--red-hover); transform: translateY(-1px); }
+
+  .btn-price {
+    opacity: 0.9;
+    font-weight: 400;
+    font-size: 14px;
+  }
+
+  .price-delta {
+    font-size: 12px;
+    opacity: 0.8;
+  }
+
+  /* Embed footer row */
+  .embed-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+  }
+
+  .embed-stat { display: flex; align-items: center; gap: 4px; }
+
+  .embed-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .embed-action-btn {
+    padding: 4px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-normal);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s;
+  }
+
+  .embed-action-btn:hover { background: rgba(79,84,92,0.3); border-color: var(--text-muted); }
+
+  /* ── Modal / Bottom Sheet ── */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--overlay);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s;
+  }
+
+  .modal-overlay.visible { display: flex; }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .modal {
+    background: var(--modal-bg);
+    border-radius: 12px;
+    width: 480px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    animation: slideUp 0.3s ease;
+  }
+
+  .modal-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--header-primary);
+  }
+
+  .modal-body { padding: 20px; }
+
+  .modal-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+  }
+
+  /* ── Trade Sheet ── */
+  .trade-side-label {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+
+  .trade-side-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 16px;
+  }
+
+  .trade-side-badge.yes { background: rgba(35,165,89,0.15); color: var(--green); }
+  .trade-side-badge.no { background: rgba(242,63,67,0.15); color: var(--red); }
+
+  .trade-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 14px;
+  }
+
+  .trade-row-label { color: var(--text-muted); }
+  .trade-row-value { color: var(--header-primary); font-weight: 600; }
+
+  .trade-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0;
+  }
+
+  /* Amount buttons */
+  .amount-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0 16px;
+  }
+
+  .amount-btn {
+    flex: 1;
+    padding: 8px;
+    border-radius: 6px;
+    border: 2px solid var(--border);
+    background: transparent;
+    color: var(--text-normal);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.15s;
+  }
+
+  .amount-btn:hover { border-color: var(--blurple); color: var(--header-primary); }
+  .amount-btn.selected { border-color: var(--blurple); background: rgba(88,101,242,0.15); color: white; }
+
+  .trade-payout-box {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 12px 0;
+  }
+
+  .trade-profit {
+    color: var(--green);
+    font-size: 18px;
+    font-weight: 700;
+  }
+
+  .trade-slippage {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* CTA button */
+  .cta-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+    font-family: var(--font);
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .cta-btn.green { background: var(--green); color: white; }
+  .cta-btn.green:hover { background: var(--green-hover); }
+  .cta-btn.red { background: var(--red); color: white; }
+  .cta-btn.blurple { background: var(--blurple); color: white; }
+  .cta-btn.blurple:hover { background: var(--blurple-hover); }
+  .cta-btn.secondary { background: var(--border); color: var(--text-normal); }
+
+  .cta-sub {
+    font-size: 12px;
+    font-weight: 400;
+    opacity: 0.8;
+  }
+
+  /* ── Auth Gate ── */
+  .auth-option {
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.15s;
+  }
+
+  .auth-option:hover { border-color: var(--blurple); background: rgba(88,101,242,0.05); }
+
+  .auth-option-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  .auth-option-icon.discord { background: var(--blurple); }
+  .auth-option-icon.email { background: #4a4d55; }
+  .auth-option-icon.wallet { background: #f7931a30; color: #f7931a; }
+
+  .auth-option-text { flex: 1; }
+  .auth-option-title { font-weight: 600; font-size: 14px; color: var(--header-primary); }
+  .auth-option-desc { font-size: 12px; color: var(--text-muted); }
+
+  .pending-order-box {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 16px;
+    border: 1px solid var(--border);
+  }
+
+  .pending-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  .pending-detail {
+    font-size: 14px;
+    color: var(--text-normal);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .countdown {
+    color: var(--yellow);
+    font-weight: 600;
+    font-size: 13px;
+    margin-top: 6px;
+  }
+
+  /* ── Confirmation ── */
+  .confirm-icon {
+    text-align: center;
+    font-size: 48px;
+    margin: 8px 0 16px;
+  }
+
+  .confirm-title {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--header-primary);
+    margin-bottom: 20px;
+  }
+
+  .confirm-detail-box {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .confirm-detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    font-size: 14px;
+  }
+
+  .confirm-detail-row .label { color: var(--text-muted); }
+  .confirm-detail-row .value { color: var(--header-primary); font-weight: 500; }
+  .confirm-detail-row .value.green { color: var(--green); }
+
+  .confirm-status {
+    text-align: center;
+    margin-top: 8px;
+    font-size: 13px;
+    color: var(--green);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .confirm-actions .cta-btn { flex: 1; font-size: 14px; padding: 10px; }
+
+  /* ── Portfolio ── */
+  .portfolio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+
+  .portfolio-balance {
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+
+  .portfolio-balance span {
+    color: var(--header-primary);
+    font-weight: 600;
+    font-size: 18px;
+  }
+
+  .portfolio-pnl {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .portfolio-pnl.positive { color: var(--green); }
+
+  .position-card {
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+  }
+
+  .position-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+
+  .position-question {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--header-primary);
+    flex: 1;
+    margin-right: 8px;
+  }
+
+  .position-side-tag {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .position-side-tag.yes { background: rgba(35,165,89,0.2); color: var(--green); }
+  .position-side-tag.no { background: rgba(242,63,67,0.2); color: var(--red); }
+
+  .position-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .position-pnl { font-weight: 600; }
+  .position-pnl.positive { color: var(--green); }
+  .position-pnl.negative { color: var(--red); }
+
+  .cashout-btn {
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-normal);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font);
+  }
+
+  .cashout-btn:hover { background: var(--border); }
+
+  /* ── Shared trade embed ── */
+  .shared-trade-text {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 2px;
+  }
+
+  .shared-trade-text strong { color: var(--header-primary); }
+
+  /* ── Leaderboard ── */
+  .lb-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 2px;
+  }
+
+  .lb-row:hover { background: rgba(79,84,92,0.2); }
+
+  .lb-rank {
+    width: 28px;
+    text-align: center;
+    font-size: 16px;
+  }
+
+  .lb-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .lb-name { flex: 1; font-weight: 600; font-size: 14px; }
+  .lb-stat { font-size: 13px; color: var(--text-muted); min-width: 70px; text-align: right; }
+  .lb-pnl { font-weight: 600; min-width: 80px; text-align: right; }
+  .lb-pnl.positive { color: var(--green); }
+
+  /* ── Toast / Notification ── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--green);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 2000;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* ── Utility ── */
+  .flex-gap-8 { display: flex; gap: 8px; }
+  .mt-8 { margin-top: 8px; }
+  .mt-16 { margin-top: 16px; }
+  .text-center { text-align: center; }
+  .text-muted { color: var(--text-muted); }
+  .text-sm { font-size: 13px; }
+  .text-xs { font-size: 12px; }
+  .fw-600 { font-weight: 600; }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .modal { width: 100%; border-radius: 12px 12px 0 0; align-self: flex-end; }
+  }
+
+  /* ── Typing indicator ── */
+  .typing {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .typing-dots span {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: typingBounce 1.4s infinite ease-in-out;
+  }
+
+  .typing-dots span:nth-child(1) { animation-delay: 0s; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingBounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-4px); }
+  }
+
+  .price-tick {
+    transition: color 0.3s;
+  }
+
+  .price-tick.up { color: var(--green); }
+  .price-tick.down { color: var(--red); }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <span>📈</span> Wall Street Degens
+    </div>
+    <div class="channel-category">Prediction Markets</div>
+    <div class="channel active" id="ch-markets">
+      <span class="channel-hash">#</span> markets
+    </div>
+    <div class="channel" id="ch-portfolio" onclick="goStep(5)">
+      <span class="channel-hash">#</span> my-portfolio
+    </div>
+    <div class="channel" id="ch-leaderboard" onclick="goStep(6)">
+      <span class="channel-hash">#</span> leaderboard
+    </div>
+    <div class="channel-category">General</div>
+    <div class="channel">
+      <span class="channel-hash">#</span> stocks-chat
+    </div>
+    <div class="channel">
+      <span class="channel-hash">#</span> crypto-talk
+    </div>
+    <div class="channel">
+      <span class="channel-hash">#</span> sports-bets
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat">
+    <!-- Step bar -->
+    <div class="steps-bar">
+      <div class="step-item active" data-step="1" onclick="goStep(1)">
+        <span class="step-num">1</span> Event Card
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="step-item" data-step="2" onclick="goStep(2)">
+        <span class="step-num">2</span> Trade Sheet
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="step-item" data-step="3" onclick="goStep(3)">
+        <span class="step-num">3</span> Auth Gate
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="step-item" data-step="4" onclick="goStep(4)">
+        <span class="step-num">4</span> Confirmation
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="step-item" data-step="5" onclick="goStep(5)">
+        <span class="step-num">5</span> Portfolio
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="step-item" data-step="6" onclick="goStep(6)">
+        <span class="step-num">6</span> Leaderboard
+      </div>
+      <span class="step-arrow">›</span>
+      <div class="step-item" data-step="7" onclick="goStep(7)">
+        <span class="step-num">7</span> Viral Loop
+      </div>
+    </div>
+
+    <!-- Chat header -->
+    <div class="chat-header">
+      <span class="channel-hash">#</span>
+      <span id="chat-channel-name">markets</span>
+    </div>
+
+    <!-- Messages area — each step is a screen -->
+    <div class="messages" id="messages">
+      <!-- Dynamically rendered -->
+    </div>
+  </div>
+</div>
+
+<!-- Modals (trade sheet, auth, confirmation) rendered here -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-content">
+    <!-- Dynamically rendered -->
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ──
+let currentStep = 1;
+let selectedAmount = 1000; // cents
+const YES_PRICE = 62;
+const NO_PRICE = 38;
+
+// ── Step definitions ──
+function goStep(n) {
+  currentStep = n;
+  updateStepBar();
+  closeModal();
+  renderStep();
+}
+
+function updateStepBar() {
+  document.querySelectorAll('.step-item').forEach(el => {
+    const s = parseInt(el.dataset.step);
+    el.classList.remove('active', 'done');
+    if (s === currentStep) el.classList.add('active');
+    else if (s < currentStep) el.classList.add('done');
+  });
+
+  // Update sidebar
+  document.querySelectorAll('.channel').forEach(c => c.classList.remove('active'));
+  if (currentStep === 5) document.getElementById('ch-portfolio').classList.add('active');
+  else if (currentStep === 6) document.getElementById('ch-leaderboard').classList.add('active');
+  else document.getElementById('ch-markets').classList.add('active');
+
+  // Update chat header
+  const names = { 1:'markets', 2:'markets', 3:'markets', 4:'markets', 5:'my-portfolio', 6:'leaderboard', 7:'markets' };
+  document.getElementById('chat-channel-name').textContent = names[currentStep] || 'markets';
+}
+
+function renderStep() {
+  const m = document.getElementById('messages');
+  switch (currentStep) {
+    case 1: m.innerHTML = renderEventCard(); break;
+    case 2: m.innerHTML = renderEventCard(); showTradeSheet(); break;
+    case 3: m.innerHTML = renderEventCard(); showAuthGate(); break;
+    case 4: m.innerHTML = renderEventCard(); showConfirmation(); break;
+    case 5: m.innerHTML = renderPortfolio(); break;
+    case 6: m.innerHTML = renderLeaderboard(); break;
+    case 7: m.innerHTML = renderViralLoop(); break;
+  }
+}
+
+// ── Renderers ──
+
+function renderEventCard() {
+  return `
+    <div class="message">
+      <div class="avatar user">M</div>
+      <div class="msg-content">
+        <div class="msg-author">trader_mike <span class="msg-time">Today at 2:14 PM</span></div>
+        <div class="msg-text">NVDA is hitting $180 by close, calling it now 🚀</div>
+      </div>
+    </div>
+    <div class="message">
+      <div class="avatar" style="background:#e74c3c">B</div>
+      <div class="msg-content">
+        <div class="msg-author">bearish_ben <span class="msg-time">Today at 2:15 PM</span></div>
+        <div class="msg-text">No way, earnings were mid. You're dreaming.</div>
+      </div>
+    </div>
+    <div class="message">
+      <div class="avatar bot">P</div>
+      <div class="msg-content">
+        <div class="msg-author">
+          Prediction Bot <span class="bot-badge">BOT</span>
+          <span class="msg-time">Today at 2:15 PM</span>
+        </div>
+
+        <div class="embed embed-pill-green">
+          <div class="embed-body">
+            <div class="embed-header">
+              <span class="embed-label">📊 Prediction Market</span>
+              <span class="live-badge"><span class="live-dot"></span> LIVE</span>
+            </div>
+
+            <div class="embed-question">Will NVDA close above $180 today?</div>
+
+            <div class="prob-bar-container">
+              <div class="prob-bar-labels">
+                <span>0%</span>
+                <span><strong id="prob-pct">${YES_PRICE}%</strong> chance</span>
+                <span>100%</span>
+              </div>
+              <div class="prob-bar">
+                <div class="prob-bar-fill" id="prob-fill" style="width: ${YES_PRICE}%"></div>
+              </div>
+            </div>
+
+            <div class="trade-buttons">
+              <button class="btn-yes" onclick="goStep(2)">
+                🟢 YES <span class="btn-price">${YES_PRICE}¢</span>
+                <span class="price-delta">+3¢ ↑</span>
+              </button>
+              <button class="btn-no" onclick="goStep(2)">
+                🔴 NO <span class="btn-price">${NO_PRICE}¢</span>
+                <span class="price-delta">-3¢ ↓</span>
+              </button>
+            </div>
+
+            <div class="embed-stats">
+              <span class="embed-stat">💰 $12,450</span>
+              <span class="embed-stat">👥 342 traders</span>
+              <span class="embed-stat">⏰ Closes 4:00 PM ET</span>
+            </div>
+
+            <div class="embed-actions">
+              <button class="embed-action-btn">📈 Chart</button>
+              <button class="embed-action-btn">💬 12</button>
+              <button class="embed-action-btn" onclick="goStep(5)">📋 My Position</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    ${currentStep === 1 ? `
+    <div class="typing">
+      <span class="typing-dots"><span></span><span></span><span></span></span>
+      Click <strong style="margin: 0 4px;">YES</strong> or <strong style="margin: 0 4px;">NO</strong> to see the trade flow →
+    </div>` : ''}
+  `;
+}
+
+function showTradeSheet() {
+  const shares = (selectedAmount / 100 / (YES_PRICE / 100)).toFixed(1);
+  const payout = (shares * 1).toFixed(2);
+  const profit = (payout - selectedAmount / 100).toFixed(2);
+  const profitPct = ((profit / (selectedAmount / 100)) * 100).toFixed(0);
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">Trade: NVDA above $180 today</div>
+    <div class="modal-body">
+      <div class="trade-side-label">You're buying</div>
+      <div class="trade-side-badge yes">🟢 YES</div>
+
+      <div class="trade-row">
+        <span class="trade-row-label">Price per share</span>
+        <span class="trade-row-value">${YES_PRICE}¢ <span style="color:var(--green); font-size:12px">● LIVE</span></span>
+      </div>
+
+      <hr class="trade-divider">
+
+      <div class="trade-row-label" style="margin-top:8px">Amount</div>
+      <div class="amount-buttons">
+        <button class="amount-btn ${selectedAmount===500?'selected':''}" onclick="pickAmount(500)">$5</button>
+        <button class="amount-btn ${selectedAmount===1000?'selected':''}" onclick="pickAmount(1000)">$10</button>
+        <button class="amount-btn ${selectedAmount===2500?'selected':''}" onclick="pickAmount(2500)">$25</button>
+        <button class="amount-btn ${selectedAmount===5000?'selected':''}" onclick="pickAmount(5000)">$50</button>
+      </div>
+
+      <div class="trade-payout-box">
+        <div class="trade-row">
+          <span class="trade-row-label">Shares you get</span>
+          <span class="trade-row-value">${shares}</span>
+        </div>
+        <div class="trade-row">
+          <span class="trade-row-label">Potential payout</span>
+          <span class="trade-row-value">$${payout}</span>
+        </div>
+        <div class="trade-row">
+          <span class="trade-row-label">Potential profit</span>
+          <span class="trade-profit">+$${profit} (+${profitPct}%)</span>
+        </div>
+      </div>
+
+      <div class="trade-slippage">
+        🔒 Price protection: ±2¢ slippage  ·  Order fills between ${YES_PRICE-2}¢ – ${YES_PRICE+2}¢ or is cancelled
+      </div>
+
+      <button class="cta-btn green mt-16" onclick="goStep(3)">
+        🟢 Place Order — Buy YES at ${YES_PRICE}¢
+        <span class="cta-sub">Profit: +$${profit}</span>
+      </button>
+
+      <button class="cta-btn secondary mt-8" onclick="goStep(1)">Cancel</button>
+
+      <div class="text-center text-xs text-muted mt-8">
+        ℹ️ Shares pay <strong>$1.00</strong> each if YES wins
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+function pickAmount(cents) {
+  selectedAmount = cents;
+  showTradeSheet();
+}
+
+function showAuthGate() {
+  const shares = (selectedAmount / 100 / (YES_PRICE / 100)).toFixed(1);
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">Connect Your Account</div>
+    <div class="modal-body">
+      <div class="text-muted text-sm" style="margin-bottom:16px">
+        To trade on prediction markets, connect or create your account. One-time setup.
+      </div>
+
+      <div class="auth-option" onclick="goStep(4)">
+        <div class="auth-option-icon discord">🔗</div>
+        <div class="auth-option-text">
+          <div class="auth-option-title">Continue with Discord</div>
+          <div class="auth-option-desc">Uses your Discord identity — fastest</div>
+        </div>
+        <span style="color:var(--text-muted)">›</span>
+      </div>
+
+      <div class="auth-option" onclick="goStep(4)">
+        <div class="auth-option-icon email">📧</div>
+        <div class="auth-option-text">
+          <div class="auth-option-title">Sign in with Email</div>
+          <div class="auth-option-desc">Use any email address</div>
+        </div>
+        <span style="color:var(--text-muted)">›</span>
+      </div>
+
+      <div class="auth-option" onclick="goStep(4)">
+        <div class="auth-option-icon wallet">🏦</div>
+        <div class="auth-option-text">
+          <div class="auth-option-title">Connect Existing Account</div>
+          <div class="auth-option-desc">Kalshi, Polymarket, etc.</div>
+        </div>
+        <span style="color:var(--text-muted)">›</span>
+      </div>
+
+      <div class="pending-order-box">
+        <div class="pending-label">Your pending order will be held:</div>
+        <div class="pending-detail">
+          🟢 YES NVDA&gt;$180 · ${shares} shares @ ${YES_PRICE}¢ · $${(selectedAmount/100).toFixed(2)}
+        </div>
+        <div class="countdown">⏱️ 4:52 remaining</div>
+      </div>
+
+      <div class="text-xs text-muted mt-16 text-center">
+        🔒 Licensed & regulated · Funds held in trust · KYC may be required for withdrawals
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+function showConfirmation() {
+  const shares = (selectedAmount / 100 / (YES_PRICE / 100)).toFixed(1);
+  const payout = (shares * 1).toFixed(2);
+  const profit = (payout - selectedAmount / 100).toFixed(2);
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-body">
+      <div class="confirm-icon">✅</div>
+      <div class="confirm-title">Order Placed!</div>
+
+      <div class="confirm-detail-box">
+        <div style="font-size:14px; font-weight:600; color:var(--header-primary); margin-bottom:12px;">
+          NVDA above $180 today
+        </div>
+
+        <div class="confirm-detail-row">
+          <span class="label">Side</span>
+          <span class="value">🟢 YES</span>
+        </div>
+        <div class="confirm-detail-row">
+          <span class="label">Shares</span>
+          <span class="value">${shares}</span>
+        </div>
+        <div class="confirm-detail-row">
+          <span class="label">Avg price</span>
+          <span class="value">${YES_PRICE}¢</span>
+        </div>
+        <div class="confirm-detail-row">
+          <span class="label">Total cost</span>
+          <span class="value">$${(selectedAmount/100).toFixed(2)}</span>
+        </div>
+        <div class="confirm-detail-row">
+          <span class="label">Potential win</span>
+          <span class="value green">$${payout} (+$${profit})</span>
+        </div>
+      </div>
+
+      <div class="confirm-status">● Filled at ${YES_PRICE}¢ (within 2¢ limit)</div>
+
+      <div class="confirm-actions">
+        <button class="cta-btn secondary" onclick="goStep(5)">📊 Portfolio</button>
+        <button class="cta-btn blurple" onclick="goStep(7)">📢 Share in Chat</button>
+      </div>
+    </div>
+  `;
+  openModal();
+}
+
+function renderPortfolio() {
+  return `
+    <div class="message">
+      <div class="avatar bot">P</div>
+      <div class="msg-content">
+        <div class="msg-author">
+          Prediction Bot <span class="bot-badge">BOT</span>
+          <span class="msg-time">Today at 2:18 PM</span>
+        </div>
+
+        <div class="embed embed-pill-blurple" style="max-width:560px">
+          <div class="embed-body">
+            <div style="font-size:16px; font-weight:700; color:var(--header-primary); margin-bottom:16px;">
+              💼 Your Prediction Portfolio
+            </div>
+
+            <div class="portfolio-header">
+              <div class="portfolio-balance">Balance: <span>$90.00</span></div>
+              <div class="portfolio-pnl positive">P&L Today: +$8.30 (+6.2%)</div>
+            </div>
+
+            <div class="position-card">
+              <div class="position-header">
+                <span class="position-question">NVDA above $180 today</span>
+                <span class="position-side-tag yes">YES</span>
+              </div>
+              <div class="position-details">
+                <span>16.1 shares @ 62¢ → now 68¢</span>
+                <span class="position-pnl positive">+$0.97 (+9.7%)</span>
+                <button class="cashout-btn">Cash Out $10.95</button>
+              </div>
+            </div>
+
+            <div class="position-card">
+              <div class="position-header">
+                <span class="position-question">BTC below $95K this week</span>
+                <span class="position-side-tag no">NO</span>
+              </div>
+              <div class="position-details">
+                <span>5.0 shares @ 41¢ → now 38¢</span>
+                <span class="position-pnl negative">-$0.15 (-7.3%)</span>
+                <button class="cashout-btn">Cash Out $1.90</button>
+              </div>
+            </div>
+
+            <div class="position-card">
+              <div class="position-header">
+                <span class="position-question">T1 wins Worlds 2026</span>
+                <span class="position-side-tag yes">YES</span>
+              </div>
+              <div class="position-details">
+                <span>25.0 shares @ 33¢ → now 40¢</span>
+                <span class="position-pnl positive">+$1.75 (+21%)</span>
+                <button class="cashout-btn">Cash Out $10.00</button>
+              </div>
+            </div>
+
+            <hr class="trade-divider">
+            <div style="font-size:13px; color:var(--text-muted); margin-top:8px;">
+              <strong style="color:var(--header-primary)">Resolved Today</strong><br>
+              ✅ AAPL earnings beat · WON · <span style="color:var(--green)">+$4.20</span><br>
+              ❌ ETH > $4K today · LOST · <span style="color:var(--red)">-$3.00</span>
+            </div>
+
+            <div class="embed-actions" style="margin-top:12px">
+              <button class="embed-action-btn" onclick="goStep(1)">📊 Browse Markets</button>
+              <button class="embed-action-btn">💳 Add Funds</button>
+              <button class="embed-action-btn">📝 History</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderLeaderboard() {
+  const lb = [
+    { rank:'🥇', name:'prophit_pete', color:'#e67e22', pnl:'+$342', rate:'71%', trades:48 },
+    { rank:'🥈', name:'market_maven', color:'#9b59b6', pnl:'+$287', rate:'68%', trades:62 },
+    { rank:'🥉', name:'lucky_lucy', color:'#e74c3c', pnl:'+$198', rate:'74%', trades:29 },
+    { rank:'4', name:'bull_run_bob', color:'#3498db', pnl:'+$156', rate:'59%', trades:81 },
+    { rank:'5', name:'crystal_ball', color:'#1abc9c', pnl:'+$134', rate:'65%', trades:37 },
+  ];
+
+  const rows = lb.map(l => `
+    <div class="lb-row">
+      <div class="lb-rank">${l.rank}</div>
+      <div class="lb-avatar" style="background:${l.color}">${l.name[0].toUpperCase()}</div>
+      <div class="lb-name">${l.name}</div>
+      <div class="lb-stat">${l.rate} win</div>
+      <div class="lb-stat">${l.trades} trades</div>
+      <div class="lb-pnl positive">${l.pnl}</div>
+    </div>
+  `).join('');
+
+  return `
+    <div class="message">
+      <div class="avatar bot">P</div>
+      <div class="msg-content">
+        <div class="msg-author">
+          Prediction Bot <span class="bot-badge">BOT</span>
+          <span class="msg-time">Today at 2:20 PM</span>
+        </div>
+
+        <div class="embed embed-pill-gold" style="max-width:560px">
+          <div class="embed-body">
+            <div style="font-size:16px; font-weight:700; color:var(--header-primary); margin-bottom:4px;">
+              🏆 Prediction Leaderboard
+            </div>
+            <div class="text-sm text-muted" style="margin-bottom:16px">
+              Wall Street Degens · March 2026
+            </div>
+
+            ${rows}
+
+            <div class="lb-row" style="background:rgba(88,101,242,0.1); border-radius:6px; margin-top:8px;">
+              <div class="lb-rank">47</div>
+              <div class="lb-avatar" style="background:var(--green)">Y</div>
+              <div class="lb-name">you ⭐</div>
+              <div class="lb-stat">60% win</div>
+              <div class="lb-stat">5 trades</div>
+              <div class="lb-pnl positive">+$8.30</div>
+            </div>
+
+            <div style="margin-top:16px; padding:12px; background:var(--bg-tertiary); border-radius:8px;">
+              <div class="text-sm fw-600" style="color:var(--header-primary); margin-bottom:6px;">Badges Earned</div>
+              <div class="text-sm text-muted">
+                🎯 <strong>Sharpshooter</strong> — 5 wins in a row<br>
+                📈 <strong>Early Bird</strong> — Traded within 1 min of market open
+              </div>
+            </div>
+
+            <div class="embed-actions" style="margin-top:12px">
+              <button class="embed-action-btn">📊 All Time</button>
+              <button class="embed-action-btn" onclick="toast('Leaderboard shared!')">📢 Share</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderViralLoop() {
+  return `
+    <div class="message">
+      <div class="avatar user">M</div>
+      <div class="msg-content">
+        <div class="msg-author">trader_mike <span class="msg-time">Today at 2:14 PM</span></div>
+        <div class="msg-text">NVDA is hitting $180 by close, calling it now 🚀</div>
+      </div>
+    </div>
+
+    <div class="message">
+      <div class="avatar bot">P</div>
+      <div class="msg-content">
+        <div class="msg-author">
+          Prediction Bot <span class="bot-badge">BOT</span>
+          <span class="msg-time">Today at 2:19 PM</span>
+        </div>
+
+        <div class="embed embed-pill-green" style="max-width:520px">
+          <div class="embed-body">
+            <div class="shared-trade-text">
+              <strong>@trader_mike</strong> just bought 🟢 <strong>YES</strong> on:
+            </div>
+            <div style="font-size:15px; font-weight:600; color:var(--header-primary); margin:8px 0; padding:8px 12px; background:var(--bg-tertiary); border-radius:6px; border-left:3px solid var(--green);">
+              "Will NVDA close above $180 today?" at 62¢
+            </div>
+            <div style="font-style:italic; color:var(--text-muted); font-size:14px; margin-bottom:12px;">
+              💬 "Earnings call crushed it, this is easy money"
+            </div>
+
+            <div class="trade-buttons">
+              <button class="btn-yes" onclick="goStep(2)">
+                🟢 YES <span class="btn-price">63¢</span>
+              </button>
+              <button class="btn-no" onclick="goStep(2)">
+                🔴 NO <span class="btn-price">37¢</span>
+              </button>
+            </div>
+
+            <div class="embed-stats">
+              <span class="embed-stat">💰 $12,460</span>
+              <span class="embed-stat">👥 343 traders</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:8px; font-size:13px; color:var(--text-muted);">
+          👍 12 &nbsp; 👎 3
+        </div>
+      </div>
+    </div>
+
+    <div class="message">
+      <div class="avatar" style="background:#e74c3c">B</div>
+      <div class="msg-content">
+        <div class="msg-author">bearish_ben <span class="msg-time">Today at 2:20 PM</span></div>
+        <div class="msg-text">Bold call, Mike. I'm buying NO on this one. 😤</div>
+      </div>
+    </div>
+
+    <div class="message">
+      <div class="avatar" style="background:#9b59b6">L</div>
+      <div class="msg-content">
+        <div class="msg-author">lucky_lucy <span class="msg-time">Today at 2:21 PM</span></div>
+        <div class="msg-text">Just bought YES too. Mike's streak is insane this month 🔥</div>
+      </div>
+    </div>
+
+    <div class="typing">
+      <span class="typing-dots"><span></span><span></span><span></span></span>
+      Every shared trade is a new tradeable card — <strong style="margin:0 4px">virality baked into the product</strong>
+    </div>
+  `;
+}
+
+// ── Modal helpers ──
+function openModal() {
+  document.getElementById('modal-overlay').classList.add('visible');
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('visible');
+}
+
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) {
+    goStep(1);
+  }
+});
+
+// ── Toast ──
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Keyboard navigation ──
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight' && currentStep < 7) goStep(currentStep + 1);
+  if (e.key === 'ArrowLeft' && currentStep > 1) goStep(currentStep - 1);
+});
+
+// ── Init ──
+renderStep();
+
+// ── Simulate live price tick ──
+setInterval(() => {
+  const probEl = document.getElementById('prob-pct');
+  const fillEl = document.getElementById('prob-fill');
+  if (probEl && fillEl) {
+    const delta = Math.random() > 0.5 ? 1 : -1;
+    const current = parseInt(probEl.textContent);
+    const next = Math.max(40, Math.min(80, current + delta));
+    probEl.textContent = next + '%';
+    fillEl.style.width = next + '%';
+    probEl.style.color = delta > 0 ? 'var(--green)' : 'var(--red)';
+    setTimeout(() => { if (probEl) probEl.style.color = ''; }, 500);
+  }
+}, 3000);
+</script>
+</body>
+</html>

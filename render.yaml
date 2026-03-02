@@ -1,0 +1,47 @@
+# Render Blueprint — deploy with "New > Blueprint" pointing to this repo
+# Docs: https://docs.render.com/blueprint-spec
+#
+# Uses Render FREE web service + external Neon FREE PostgreSQL.
+# Total cost: $0/month
+
+services:
+  - type: web
+    name: prediction-markets
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_TOKEN
+        sync: false  # Set manually in Render dashboard
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DATABASE_URL
+        sync: false  # Paste your Neon connection string
+      - key: RENDER_EXTERNAL_URL
+        sync: false  # Auto-set by Render, used for keep-alive
+      - key: DEFAULT_SLIPPAGE_CENTS
+        value: "2"
+      - key: ORDER_TTL_SECONDS
+        value: "10"
+      - key: FEE_RATE
+        value: "0.02"
+      - key: PLATFORM_FEE_SHARE
+        value: "0.50"
+      - key: SERVER_OWNER_FEE_SHARE
+        value: "0.30"
+      - key: CREATOR_FEE_SHARE
+        value: "0.20"
+      - key: AMM_INITIAL_LIQUIDITY
+        value: "1000"
+      - key: AMM_SUBSIDY
+        value: "100"
+
+# No database block — using Neon free PostgreSQL instead of Render's
+# (Render free Postgres expires after 90 days; Neon doesn't)
